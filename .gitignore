@@ -3,3 +3,4 @@ tb/results.xml
 tb/__pycache__/
 *.fst
 *.vcd
+*.zip
