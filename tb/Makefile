@@ -1,15 +1,19 @@
 # cocotb Makefile (cocotb 2.x + Icarus Verilog)
-# Run:            make
-# With waveforms: make WAVES=1   (then open the waveform file in GTKWave)
+#
+# Run the parser tests (default):   make
+# Run another module's tests:       make TOP=counter
+# With waveforms:                   make WAVES=1   (sim_build/<TOP>/<TOP>.fst)
+
+TOP ?= eth_ip_udp_parser
 
 SIM ?= icarus
 TOPLEVEL_LANG ?= verilog
-
-# -g2012 enables SystemVerilog support in Icarus
 COMPILE_ARGS += -g2012
 
-VERILOG_SOURCES += $(PWD)/../rtl/counter.sv
-COCOTB_TOPLEVEL = counter
-COCOTB_TEST_MODULES = test_counter
+# compile every RTL file; -s picks the top module
+VERILOG_SOURCES = $(wildcard $(PWD)/../rtl/*.sv)
+COCOTB_TOPLEVEL = $(TOP)
+COCOTB_TEST_MODULES = test_$(TOP)
+SIM_BUILD = sim_build/$(TOP)
 
 include $(shell cocotb-config --makefiles)/Makefile.sim

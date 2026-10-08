@@ -40,23 +40,45 @@ zero-padded, so the payload end must come from the UDP length, not `s_tlast`.
 | 8      | 4    | `qty`        | total quantity now at this price; **0 = remove level** |
 | 12     | 4    | `seq`        | sequence number                         |
 
-## Book semantics
+## Book semantics (v2: `price_book.sv`)
 
-The handler keeps up to **N = 8 price levels per side**.
+Each instrument has a **price window** `[base, base + W)` (W = 256 ticks by
+default), configured at start of day through the `cfg_*` port. Writing a base
+also clears that instrument's book. Up to `N_INSTR = 4` instruments
+(`instrument` = 0..3).
 
-- `qty > 0` and price exists: update its quantity
-- `qty > 0` and price is new: insert it (if the side is full, drop the worst level)
-- `qty == 0`: remove that price level
+Inside the window every price tick has its own slot, so there is **no limit on
+the number of levels** and no level is ever lost.
+
+- `qty > 0`: set the quantity at that price (insert or update)
+- `qty == 0`: remove that price level (unknown price: ignored)
+- unknown instrument (`>= N_INSTR`): rejected, `rej_reason = 1`
+- price outside the window: rejected, `rej_reason = 2`
+
+(v1, `order_book.sv`: 8 sorted levels per side, single instrument; a level
+pushed out of a full book was lost. Kept in the repo for comparison.)
+
+## Configuration port
+
+| Signal           | Width | Meaning                                    |
+|------------------|-------|--------------------------------------------|
+| `cfg_valid`      | 1     | write a price window base                  |
+| `cfg_instrument` | 16    | instrument to configure                    |
+| `cfg_base_px`    | 32    | lowest price of that instrument's window   |
 
 ## Outputs
 
-| Signal          | Width | Meaning                                  |
-|-----------------|-------|------------------------------------------|
-| `tob_valid`     | 1     | One-cycle pulse when best bid/ask changed |
-| `best_bid_px`   | 32    | Highest bid price (0 if bid side empty)  |
-| `best_bid_qty`  | 32    |                                          |
-| `best_ask_px`   | 32    | Lowest ask price (0 if ask side empty)   |
-| `best_ask_qty`  | 32    |                                          |
+| Signal           | Width | Meaning                                         |
+|------------------|-------|-------------------------------------------------|
+| `tob_valid`      | 1     | 1-cycle pulse: this instrument's top of book changed |
+| `tob_instrument` | 16    | which instrument                                |
+| `best_bid_px`    | 32    | highest bid price (0 if bid side empty)         |
+| `best_bid_qty`   | 32    |                                                 |
+| `best_ask_px`    | 32    | lowest ask price (0 if ask side empty)          |
+| `best_ask_qty`   | 32    |                                                 |
+| `tob_crossed`    | 1     | best bid >= best ask (crossed or locked book)   |
+| `rej_valid`      | 1     | 1-cycle pulse: a message was rejected           |
+| `rej_reason`     | 2     | 1 = unknown instrument, 2 = price outside window |
 
 ## Latency definition
 
